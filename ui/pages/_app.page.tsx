@@ -1,14 +1,19 @@
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import "./reactCOIServiceWorker";
-import axios from "axios";
-
 import ZkappWorkerClient from "./zkappWorkerClient";
-
-import { PublicKey, Field, PrivateKey } from "snarkyjs";
+import { PublicKey, Field } from "snarkyjs";
 import getSignerData from "./utilts";
-
-let transactionFee = 0.1;
+import {
+  Button,
+  Box,
+  Container,
+  Typography,
+  TextField,
+  Grid,
+} from "@mui/material";
+import axios from "axios";
+import Loader from "../component/Loader";
 
 export default function App() {
   let [state, setState] = useState({
@@ -16,15 +21,20 @@ export default function App() {
     hasWallet: null as null | boolean,
     hasBeenSetup: false,
     accountExists: false,
-    currentNum: null as null | Field,
-    publicKey: null as null | PublicKey,
+    currentState: null as null | Field,
+    // publicKey: null as null | PublicKey,
     zkappPublicKey: null as null | PublicKey,
     creatingTransaction: false,
   });
 
   const [data, setdata] = useState({
-    userId: "1",
-    rate: 0,
+    userId: "" as string,
+    rate: 0 as number,
+  });
+
+  const [uistate, setuistate] = useState({
+    loading: false as boolean,
+    message: null as null | string,
   });
   // -------------------------------------------------------
   // Do Setup
@@ -32,85 +42,45 @@ export default function App() {
   useEffect(() => {
     (async () => {
       if (!state.hasBeenSetup) {
+        setuistate({ loading: true, message: "Loading SnarkyJS..." });
         const zkappWorkerClient = new ZkappWorkerClient();
 
-        console.log("Loading SnarkyJS...");
         await zkappWorkerClient.loadSnarkyJS();
-        console.log("done");
+        setuistate({ ...uistate, message: "Creating contract instance..." });
 
         await zkappWorkerClient.setActiveInstanceToBerkeley();
-
-        const mina = (window as any).mina;
-
-        if (mina == null) {
-          setState({ ...state, hasWallet: false });
-          return;
-        }
-
-        const publicKeyBase58: string = (await mina.requestAccounts())[0];
-        const publicKey = PublicKey.fromBase58(publicKeyBase58);
-
-        console.log("using key", publicKey.toBase58());
-
-        console.log("checking if account exists...");
-        // const res = await zkappWorkerClient.fetchAccount({
-        //   publicKey: publicKey!,
-        // });
-        // const accountExists = res.error == null;
-
+        setuistate({ ...uistate, message: "Loading contract..." });
         await zkappWorkerClient.loadContract();
+        setuistate({ loading: true, message: "compiling zkApp..." });
 
-        console.log("compiling zkApp");
         await zkappWorkerClient.compileContract();
-        console.log("zkApp compiled");
 
+        setuistate({ ...uistate, message: "zkApp compiled" });
         const zkappPublicKey = PublicKey.fromBase58(
           "B62qk6SyNNQpPs9682tA37eFnu7jfju9bRbqAgxbNEvwLc7uFNTh9RN"
         );
-
+        setuistate({ ...uistate, message: "Creating contract instance..." });
         await zkappWorkerClient.initZkappInstance(zkappPublicKey);
+        setuistate({ ...uistate, message: "getting zkApp state..." });
+        const currentState = await zkappWorkerClient.getNum();
 
-        console.log("getting zkApp state...");
-        // await zkappWorkerClient.fetchAccount({ publicKey: zkappPublicKey });
-        // const currentNum = await zkappWorkerClient.getNum();
-        // console.log("current state:", currentNum.toString());
+        currentState.toString() == "0" &&
+          setuistate({ loading: false, message: "User state is False" });
+        currentState.toString() == "1" &&
+          setuistate({ loading: false, message: "User state is False" });
 
         setState({
           ...state,
           zkappWorkerClient,
           hasWallet: true,
           hasBeenSetup: true,
-          publicKey,
           zkappPublicKey,
           accountExists: true,
-          // currentNum: 0,
+          currentState,
         });
       }
     })();
   }, []);
-
-  // -------------------------------------------------------
-  // Wait for account to exist, if it didn't
-
-  // useEffect(() => {
-  //   (async () => {
-  //     if (state.hasBeenSetup && !state.accountExists) {
-  //       for (;;) {
-  //         console.log("checking if account exists...");
-  //         const res = await state.zkappWorkerClient!.fetchAccount({
-  //           publicKey: state.publicKey!,
-  //         });
-  //         const accountExists = res.error == null;
-  //         if (accountExists) {
-  //           break;
-  //         }
-  //         await new Promise((resolve) => setTimeout(resolve, 1000));
-  //       }
-  //       console.log("test");
-  //       setState({ ...state, accountExists: true });
-  //     }
-  //   })();
-  // }, [state.hasBeenSetup]);
 
   // -------------------------------------------------------
   // Send a transaction
@@ -118,136 +88,99 @@ export default function App() {
   const onSendTransaction = async () => {
     try {
       setState({ ...state, creatingTransaction: true });
-      console.log("sending a transaction...");
-
-      // await state.zkappWorkerClient!.fetchAccount({
-      //   publicKey: state.publicKey!,
-      // });
+      setuistate({ loading: true, message: "sending a transaction..." });
       const dataT = await getSignerData(data.userId, data.rate);
-      await state.zkappWorkerClient!.createUpdateTransaction(dataT);
-
-      // console.log("creating proof...");
-      // await state.zkappWorkerClient!.proveUpdateTransaction();
-
-      // console.log("getting Transaction JSON...");
-      // const transactionJSON =
-      //   await state.zkappWorkerClient!.getTransactionJSON();
-
-      // console.log("requesting send transaction...");
-      // console.log(transactionJSON);
-      // const { hash } = await (window as any).mina.sendTransaction({
-      //   transaction: transactionJSON,
-      //   feePayer: {
-      //     fee: transactionFee,
-      //     memo: "zk",
-      //   },
-      // });
-
-      console.log(
-        "See transaction at https://berkeley.minaexplorer.com/transaction/"
-        // hash
+      const response = await state.zkappWorkerClient!.createUpdateTransaction(
+        dataT
       );
+      console.log(response);
+      setuistate({
+        loading: false,
+        message: "Transaction successfully. Current user state True.",
+      });
 
       setState({ ...state, creatingTransaction: false });
     } catch (error) {
       console.log(error);
       setState({ ...state, creatingTransaction: false });
+      setuistate({
+        loading: false,
+        message: "Transaction decline. Current user state False.",
+      });
     }
   };
 
-  // -------------------------------------------------------
-  // Refresh the current state
+  // let mainContent;
+  // if (state.hasBeenSetup && state.accountExists) {
+  //   mainContent = (
+  //     <div>
+  //       <input
+  //         placeholder="enter value"
+  //         value={data.rate}
+  //         name="num"
+  //         type="number"
+  //         onChange={(e: any) => {
+  //           setdata({
+  //             ...data,
+  //             rate: e.target.value,
+  //           });
+  //         }}
+  //       />
+  //       <button
+  //         onClick={onSendTransaction}
+  //         disabled={state.creatingTransaction}
+  //       >
+  //         Send Transaction
+  //       </button>
+  //       {/* <div> Current Number in zkApp: {state.currentNum!.toString()} </div>
+  //       <button onClick={onRefreshCurrentNum}> Get Latest State </button> */}
+  //     </div>
+  //   );
+  // }
 
-  // const onRefreshCurrentNum = async () => {
-  //   console.log("getting zkApp state...");
-  //   await state.zkappWorkerClient!.fetchAccount({
-  //     publicKey: state.zkappPublicKey!,
-  //   });
-  //   const currentNum = await state.zkappWorkerClient!.getNum();
-  //   console.log("current state:", currentNum.toString());
+  // const onSubmit = async () => {
+  //   const res = await axios.get(
+  //     "https://sellercentral.amazon.in/performance/detail/shipping?t=cr&ref=sp_st_dash_csp_car",
+  //     {
+  //       headers: {
+  //         "Access-Control-Allow-Origin": "*",
+  //       },
+  //     }
+  //   );
+  // const resR = await res.json();
 
-  //   setState({ ...state, currentNum });
+  //   if (res.data.includes("Amazon Sign In")) {
+  //     console.log("please login first");
+  //     return;
+  //   }
+  //   console.log(
+  //     res.data.slice(
+  //       res.data.lastIndexOf(
+  //         '<span class="a-color-base sp-giant-text pre-fulfillment-cancel-rate-metric">'
+  //       ) +
+  //         '<span class="a-color-base sp-giant-text pre-fulfillment-cancel-rate-metric">'
+  //           .length,
+  //       res.data.lastIndexOf(
+  //         '</span></div></div></div><div id="pre-fulfillment-cancel-rate-summary-cancelled" class="a-section a-spacing-none">'
+  //       )
+  //     )
+  //   );
   // };
 
-  // -------------------------------------------------------
-  // Create UI elements
-
-  let hasWallet;
-  if (state.hasWallet != null && !state.hasWallet) {
-    const auroLink = "https://www.aurowallet.com/";
-    const auroLinkElem = (
-      <a href={auroLink} target="_blank" rel="noreferrer">
-        [Link]
-      </a>
-    );
-    hasWallet = (
-      <div>
-        Could not find a wallet. Install Auro wallet here: {auroLinkElem}
-      </div>
-    );
-  }
-
-  let setupText = state.hasBeenSetup
-    ? "SnarkyJS Ready"
-    : "Setting up SnarkyJS...";
-  let setup = (
-    <div>
-      {setupText} {hasWallet}
-    </div>
-  );
-
-  let accountDoesNotExist;
-  if (state.hasBeenSetup && !state.accountExists) {
-    const faucetLink =
-      "https://faucet.minaprotocol.com/?address=" + state.publicKey!.toBase58();
-    accountDoesNotExist = (
-      <div>
-        Account does not exist. Please visit the faucet to fund this account
-        <a href={faucetLink} target="_blank" rel="noreferrer">
-          [Link]
-        </a>
-      </div>
-    );
-  }
-
-  let mainContent;
-  if (state.hasBeenSetup && state.accountExists) {
-    mainContent = (
-      <div>
-        <input
-          placeholder="enter value"
-          value={data.rate}
-          name="num"
-          type="number"
-          onChange={(e: any) => {
-            setdata({
-              ...data,
-              rate: e.target.value,
-            });
-          }}
-        />
-        <button
-          onClick={onSendTransaction}
-          disabled={state.creatingTransaction}
-        >
-          Send Transaction
-        </button>
-        {/* <div> Current Number in zkApp: {state.currentNum!.toString()} </div>
-        <button onClick={onRefreshCurrentNum}> Get Latest State </button> */}
-      </div>
-    );
-  }
-
-  const onSubmit = async () => {
+  const getData = async () => {
     const res = await axios.get(
       "https://sellercentral.amazon.in/performance/detail/shipping?t=cr&ref=sp_st_dash_csp_car",
       {
         headers: {
-          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Credentials": "true",
+          "Access-Control-Allow-Origin": "http://localhost:3000",
+          "Access-Control-Allow-Methods":
+            "GET, POST, PUT, PATCH, POST, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Max-Age": "86400",
         },
       }
     );
-    // const resR = await res.json();
 
     if (res.data.includes("Amazon Sign In")) {
       console.log("please login first");
@@ -267,14 +200,109 @@ export default function App() {
     );
   };
 
+  const handelChange = (e: any) => {
+    setdata({ ...data, [e.target.name]: e.target.value });
+  };
+
   return (
-    <div>
-      {setup}
-      {accountDoesNotExist}
-      {mainContent}
-      <button style={{ backgroundColor: "Blue" }} onClick={onSubmit}>
-        submit
-      </button>
-    </div>
+    <>
+      <Box
+        component={"section"}
+        sx={{
+          height: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Container>
+          <Grid container spacing={2} justifyContent="center">
+            <Grid item xs={12} md={4}>
+              {uistate.loading ? (
+                <Loader />
+              ) : (
+                <Box
+                  sx={{
+                    border: "1px solid #cccccc",
+                    p: "30px 35px 24px",
+                    borderRadius: "10px",
+                  }}
+                >
+                  <Typography
+                    component={"h1"}
+                    sx={{ fontSize: "20px", fontWeight: "600" }}
+                  >
+                    Amazon order cancelation proof
+                  </Typography>
+                  <Box
+                    component="form"
+                    onSubmit={onSendTransaction}
+                    noValidate
+                    sx={{ mt: 1 }}
+                  >
+                    <TextField
+                      margin="normal"
+                      required
+                      fullWidth
+                      id="userId"
+                      label="Amazon UID"
+                      name="userId"
+                      onChange={handelChange}
+                      value={data.userId}
+                    />
+                    <TextField
+                      margin="normal"
+                      required
+                      fullWidth
+                      name="rate"
+                      label="Cancelation Rate"
+                      type="number"
+                      id="rate"
+                      onChange={handelChange}
+                      value={data.rate}
+                    />
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      sx={{ mt: 3, mb: 2 }}
+                      onClick={getData}
+                    >
+                      Get your Amazon Data
+                    </Button>
+                    <Button
+                      type="submit"
+                      fullWidth
+                      variant="contained"
+                      sx={{ mt: 3, mb: 2 }}
+                    >
+                      Submit
+                    </Button>
+                  </Box>
+                </Box>
+              )}
+
+              {uistate.message && (
+                <Box
+                  sx={{
+                    position: "fixed",
+                    bottom: "0",
+                    left: "0",
+                    width: "100%",
+                    p: "15px 20px 15px",
+                    bgcolor: "#1976d2",
+                    "& p": {
+                      textAlign: "center",
+                      color: "#ffffff",
+                    },
+                  }}
+                >
+                  <Typography component={"p"}>{uistate.message}</Typography>
+                </Box>
+              )}
+            </Grid>
+          </Grid>
+        </Container>
+      </Box>
+    </>
   );
 }
