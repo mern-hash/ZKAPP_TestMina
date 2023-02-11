@@ -1,9 +1,15 @@
 {
   "version": 1,
   "networks": {
-    "test": {
+    "berkeley": {
       "url": "https://proxy.berkeley.minaexplorer.com/graphql",
-      "keyPath": "keys/test.json",
+      "keyPath": "keys/berkeley.json",
+      "fee": "0.1",
+      "smartContract": "Add"
+    },
+    "palash": {
+      "url": "https://proxy.berkeley.minaexplorer.com/graphql",
+      "keyPath": "keys/palash.json",
       "fee": "0.1",
       "smartContract": "Add"
     }
