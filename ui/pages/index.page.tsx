@@ -67,7 +67,7 @@ export default function Home() {
         currentState.toString() == "0" &&
           setuistate({ loading: false, message: "User state is False" });
         currentState.toString() == "1" &&
-          setuistate({ loading: false, message: "User state is False" });
+          setuistate({ loading: false, message: "User state is True" });
 
         setState({
           ...state,
@@ -93,11 +93,20 @@ export default function Home() {
       const response = await state.zkappWorkerClient!.createUpdateTransaction(
         dataT
       );
-      console.log(response);
-      setuistate({
-        loading: false,
-        message: "Transaction successfully. Current user state True.",
-      });
+
+      if (!response?.success) {
+        setuistate({
+          loading: false,
+          message: "Transaction decline. Current user state False.",
+        });
+      } else {
+        setuistate({
+          loading: false,
+          message:
+            "Transaction Successful. Current user state True for user Id." +
+            response?.message,
+        });
+      }
 
       setState({ ...state, creatingTransaction: false });
     } catch (error) {
@@ -177,6 +186,7 @@ export default function Home() {
           "Access-Control-Allow-Methods":
             "GET, POST, PUT, PATCH, POST, DELETE, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type",
+          "Content-Type": "text/plain",
           "Access-Control-Max-Age": "86400",
         },
       }
