@@ -13,7 +13,7 @@ type Transaction = Awaited<ReturnType<typeof Mina.transaction>>;
 
 // ---------------------------------------------------------------------------------------
 
-import type { Add } from "../../contracts/src/Add";
+import type { Add } from "../contract/Add";
 
 const state = {
   OracleExample: null as null | typeof Add,
@@ -51,7 +51,7 @@ const functions = {
     state.deployerAccount = Local.testAccounts[0].privateKey;
   },
   loadContract: async () => {
-    const { Add } = await import("../../contracts/build/src/Add.js");
+    const { Add } = await import("../contract/Build/Add");
     state.OracleExample = Add;
   },
   compileContract: async () => {
