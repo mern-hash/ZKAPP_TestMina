@@ -47,18 +47,18 @@ export default class ZkappWorkerClient {
     return Field.fromJSON(JSON.parse(result as string));
   }
 
-  async createUpdateTransaction(data: any) {
+  async createUpdateTransaction(data: any): Promise<any> {
     return this._call("createUpdateTransaction", { data });
   }
 
-  async proveUpdateTransaction() {
-    return this._call("proveUpdateTransaction", {});
-  }
+  // async proveUpdateTransaction() {
+  //   return this._call("proveUpdateTransaction", {});
+  // }
 
-  async getTransactionJSON() {
-    const result = await this._call("getTransactionJSON", {});
-    return result;
-  }
+  // async getTransactionJSON() {
+  //   const result = await this._call("getTransactionJSON", {});
+  //   return result;
+  // }
 
   // ---------------------------------------------------------------------------------------
 

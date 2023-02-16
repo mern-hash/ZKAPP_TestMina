@@ -7,7 +7,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-import { Field, SmartContract, state, State, method, Permissions, PublicKey, Signature, PrivateKey, } from 'snarkyjs';
+import { Field, SmartContract, state, State, method, Permissions, PublicKey, PrivateKey, } from 'snarkyjs';
 // The public key of our trusted data provider
 const ORACLE_PUBLIC_KEY = 'B62qk6SyNNQpPs9682tA37eFnu7jfju9bRbqAgxbNEvwLc7uFNTh9RN';
 export class Add extends SmartContract {
@@ -43,7 +43,10 @@ export class Add extends SmartContract {
         const status = this.status.get();
         this.status.assertEquals(status);
         // Evaluate whether the signature is valid for the provided data
-        const validSignature = signature.verify(oraclePublicKey, [id, creditScore]);
+        const validSignature = signature.verify(oraclePublicKey, [
+            id,
+            creditScore,
+        ]);
         // Check that the signature is valid
         validSignature.assertTrue();
         // Check that the provided credit score is greater than 700
@@ -70,6 +73,6 @@ __decorate([
 __decorate([
     method,
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Field, Field, Signature]),
+    __metadata("design:paramtypes", [Field, Field, Object]),
     __metadata("design:returntype", void 0)
 ], Add.prototype, "verify", null);

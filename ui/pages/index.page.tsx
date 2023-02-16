@@ -49,6 +49,17 @@ export default function Home() {
         setuistate({ ...uistate, message: "Creating contract instance..." });
 
         await zkappWorkerClient.setActiveInstanceToBerkeley();
+        const publicKey = PublicKey.fromBase58(
+          "B62qk6SyNNQpPs9682tA37eFnu7jfju9bRbqAgxbNEvwLc7uFNTh9RN"
+        );
+
+        console.log("using key", publicKey.toBase58());
+
+        console.log("checking if account exists...");
+        const res = await zkappWorkerClient.fetchAccount({
+          publicKey: publicKey!,
+        });
+        console.log(res);
         setuistate({ ...uistate, message: "Loading contract..." });
         await zkappWorkerClient.loadContract();
         setuistate({ loading: true, message: "compiling zkApp..." });
@@ -57,10 +68,11 @@ export default function Home() {
 
         setuistate({ ...uistate, message: "zkApp compiled" });
         const zkappPublicKey = PublicKey.fromBase58(
-          "B62qk6SyNNQpPs9682tA37eFnu7jfju9bRbqAgxbNEvwLc7uFNTh9RN"
+          "B62qkXvMrDGhF1EgNNZ8UwgZkoTi8PJhhNkBqpx6B1QpKwco62iWsfn"
         );
         setuistate({ ...uistate, message: "Creating contract instance..." });
         await zkappWorkerClient.initZkappInstance(zkappPublicKey);
+        await zkappWorkerClient.fetchAccount({ publicKey: zkappPublicKey });
         setuistate({ ...uistate, message: "getting zkApp state..." });
         const currentState = await zkappWorkerClient.getNum();
 
@@ -90,9 +102,9 @@ export default function Home() {
       setState({ ...state, creatingTransaction: true });
       setuistate({ loading: true, message: "sending a transaction..." });
       const dataT = await getSignerData(data.userId, data.rate);
-      const response = await state.zkappWorkerClient!.createUpdateTransaction(
-        dataT
-      );
+      console.log("dataT", dataT);
+      const response: { success: boolean; message: any } =
+        await state.zkappWorkerClient!.createUpdateTransaction(dataT);
 
       if (!response?.success) {
         setuistate({
@@ -177,37 +189,36 @@ export default function Home() {
   // };
 
   const getData = async () => {
-    const res = await axios.get(
-      "https://sellercentral.amazon.in/performance/detail/shipping?t=cr&ref=sp_st_dash_csp_car",
-      {
-        headers: {
-          "Access-Control-Allow-Credentials": "true",
-          "Access-Control-Allow-Origin": "http://localhost:3000",
-          "Access-Control-Allow-Methods":
-            "GET, POST, PUT, PATCH, POST, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type",
-          "Content-Type": "text/plain",
-          "Access-Control-Max-Age": "86400",
-        },
-      }
-    );
-
-    if (res.data.includes("Amazon Sign In")) {
-      console.log("please login first");
-      return;
-    }
-    console.log(
-      res.data.slice(
-        res.data.lastIndexOf(
-          '<span class="a-color-base sp-giant-text pre-fulfillment-cancel-rate-metric">'
-        ) +
-          '<span class="a-color-base sp-giant-text pre-fulfillment-cancel-rate-metric">'
-            .length,
-        res.data.lastIndexOf(
-          '</span></div></div></div><div id="pre-fulfillment-cancel-rate-summary-cancelled" class="a-section a-spacing-none">'
-        )
-      )
-    );
+    // const res = await axios.get(
+    //   "https://sellercentral.amazon.in/performance/detail/shipping?t=cr&ref=sp_st_dash_csp_car",
+    //   {
+    //     headers: {
+    //       "Access-Control-Allow-Credentials": "true",
+    //       "Access-Control-Allow-Origin": "http://localhost:3000",
+    //       "Access-Control-Allow-Methods":
+    //         "GET, POST, PUT, PATCH, POST, DELETE, OPTIONS",
+    //       "Access-Control-Allow-Headers": "Content-Type",
+    //       "Content-Type": "text/plain",
+    //       "Access-Control-Max-Age": "86400",
+    //     },
+    //   }
+    // );
+    // if (res.data.includes("Amazon Sign In")) {
+    //   console.log("please login first");
+    //   return;
+    // }
+    // console.log(
+    //   res.data.slice(
+    //     res.data.lastIndexOf(
+    //       '<span class="a-color-base sp-giant-text pre-fulfillment-cancel-rate-metric">'
+    //     ) +
+    //       '<span class="a-color-base sp-giant-text pre-fulfillment-cancel-rate-metric">'
+    //         .length,
+    //     res.data.lastIndexOf(
+    //       '</span></div></div></div><div id="pre-fulfillment-cancel-rate-summary-cancelled" class="a-section a-spacing-none">'
+    //     )
+    //   )
+    // );
   };
 
   const handelChange = (e: any) => {

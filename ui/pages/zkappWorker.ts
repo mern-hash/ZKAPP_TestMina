@@ -13,7 +13,7 @@ type Transaction = Awaited<ReturnType<typeof Mina.transaction>>;
 
 // ---------------------------------------------------------------------------------------
 
-import type { Add } from "../contract/Add";
+import type { Add } from "../../contracts/src/Add";
 
 const state = {
   OracleExample: null as null | typeof Add,
@@ -25,20 +25,20 @@ const state = {
   zkAppAddress: null as null | PublicKey,
 };
 
-async function localDeploy(
-  zkAppInstance: null | Add,
-  zkAppPrivatekey: any,
-  deployerAccount: any
-) {
-  const txn = await Mina.transaction(deployerAccount, () => {
-    AccountUpdate.fundNewAccount(deployerAccount);
-    zkAppInstance!.deploy({ zkappKey: zkAppPrivatekey });
-    zkAppInstance!.init(zkAppPrivatekey);
-  });
-  await txn.prove();
-  txn.sign([zkAppPrivatekey]);
-  await txn.send();
-}
+// async function localDeploy(
+//   zkAppInstance: null | Add,
+//   zkAppPrivatekey: any,
+//   deployerAccount: any
+// ) {
+//   const txn = await Mina.transaction(deployerAccount, () => {
+//     AccountUpdate.fundNewAccount(deployerAccount);
+//     zkAppInstance!.deploy({ zkappKey: zkAppPrivatekey });
+//     zkAppInstance!.init(zkAppPrivatekey);
+//   });
+//   await txn.prove();
+//   txn.sign([zkAppPrivatekey]);
+//   await txn.send();
+// }
 // ---------------------------------------------------------------------------------------
 
 const functions = {
@@ -46,35 +46,28 @@ const functions = {
     await isReady;
   },
   setActiveInstanceToBerkeley: async () => {
-    const Local = Mina.LocalBlockchain();
-    Mina.setActiveInstance(Local);
-    state.deployerAccount = Local.testAccounts[0].privateKey;
+    const Berkeley = Mina.BerkeleyQANet(
+      "https://proxy.berkeley.minaexplorer.com/graphql"
+    );
+    Mina.setActiveInstance(Berkeley);
   },
   loadContract: async () => {
-    const { Add } = await import("../contract/Build/Add");
+    const { Add } = await import("../../contracts/build/src/Add");
     state.OracleExample = Add;
   },
   compileContract: async () => {
     await state.OracleExample!.compile();
   },
-  // fetchAccount: async (args: { publicKey58: string }) => {
-  //   const publicKey = PublicKey.fromBase58(args.publicKey58);
-  //   return await fetchAccount({ publicKey });
-  // },
+  fetchAccount: async (args: { publicKey58: string }) => {
+    const publicKey = PublicKey.fromBase58(args.publicKey58);
+    return await fetchAccount({ publicKey });
+  },
   initZkappInstance: async (args: { publicKey58: string }) => {
-    state.zkAppPrivateKey = PrivateKey.random();
-    state.zkAppAddress = state.zkAppPrivateKey.toPublicKey();
-
-    state.zkapp = new state.OracleExample!(state.zkAppAddress);
-    await localDeploy(
-      state.zkapp,
-      state.zkAppPrivateKey,
-      state.deployerAccount
-    );
+    const publicKey = PublicKey.fromBase58(args.publicKey58);
+    state.zkapp = new state.OracleExample!(publicKey);
   },
   getNum: async () => {
     const currentNum = await state.zkapp!.status.get();
-    console.log(currentNum);
     return JSON.stringify(currentNum.toJSON());
   },
   createUpdateTransaction: async (args: { data: any }) => {
@@ -83,24 +76,33 @@ const functions = {
 
       const id = Field(args.data.data.id);
       const creditScore = Field(args.data.data.creditScore);
-      const signature = Signature.fromJSON(args.data.signature);
+      const signature: any = Signature.fromJSON(args.data.signature);
+      const privateKey = PrivateKey.fromBase58(
+        "EKEGgniRoNPTjA6RJc1AKvagpqvBKkJy6zx2DyKJHP4Sm41n91Bd"
+      );
       let status = await state.zkapp!.status.get();
       console.log("Status", status.toJSON());
-      const txn = await Mina.transaction(state.deployerAccount, () => {
-        state.zkapp!.verify(id, creditScore, signature);
-      });
+      const txn = await Mina.transaction(
+        { feePayerKey: privateKey, fee: 0.2e9 },
+        () => {
+          state.zkapp!.verify(id, creditScore, signature);
+        }
+      );
       await txn.prove();
       const tex = await txn.send();
-      console.log(tex);
-      const events = await state.zkapp!.fetchEvents();
-      const verifiedEventValue = events[0].event.toFields(null)[0];
-      console.log(verifiedEventValue.toString());
+      // console.log(tex);
+      // const events = await state.zkapp!.fetchEvents();
+      // const verifiedEventValue = events[0].event.toFields(null)[0];
+      // console.log(verifiedEventValue.toString());
       status = await state.zkapp!.status.get();
       console.log(status.toJSON());
-      return { success: true, message: verifiedEventValue.toString() };
+      return {
+        success: true as boolean,
+        message: status.toJSON() as any,
+      };
     } catch (error) {
       console.log("error", error);
-      return { success: false, message: error };
+      return { success: false as boolean, message: error as any };
     }
   },
   // proveUpdateTransaction: async () => {

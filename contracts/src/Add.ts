@@ -8,7 +8,6 @@ import {
   Permissions,
   PublicKey,
   Signature,
-  PrivateKey,
 } from 'snarkyjs';
 
 // The public key of our trusted data provider
@@ -32,13 +31,13 @@ export class Add extends SmartContract {
     });
   }
 
-  @method init(zkappKey: PrivateKey) {
-    super.init(zkappKey);
+  init() {
+    super.init();
     // Initialize contract state
     this.oraclePublicKey.set(PublicKey.fromBase58(ORACLE_PUBLIC_KEY));
     this.status.set(Field(0));
     // Specify that caller should include signature with tx instead of proof
-    this.requireSignature();
+    // this.requireSignature();
   }
 
   @method verify(id: Field, creditScore: Field, signature: Signature) {
@@ -49,7 +48,10 @@ export class Add extends SmartContract {
     const status = this.status.get();
     this.status.assertEquals(status);
     // Evaluate whether the signature is valid for the provided data
-    const validSignature = signature.verify(oraclePublicKey, [id, creditScore]);
+    const validSignature = signature!.verify(oraclePublicKey, [
+      id,
+      creditScore,
+    ]);
     // Check that the signature is valid
     validSignature.assertTrue();
     // Check that the provided credit score is greater than 700
