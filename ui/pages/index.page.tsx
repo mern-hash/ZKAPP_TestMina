@@ -1,8 +1,8 @@
 // import "../styles/globals.css";
 import { useEffect, useState } from "react";
-import "./reactCOIServiceWorker";
+// import "./reactCOIServiceWorker";
 import ZkappWorkerClient from "./zkappWorkerClient";
-import { PublicKey, Field } from "snarkyjs";
+import { PublicKey, Field, Proof } from "snarkyjs";
 import getSignerData from "./utilts";
 import {
   Button,
@@ -12,8 +12,8 @@ import {
   TextField,
   Grid,
 } from "@mui/material";
-import axios from "axios";
 import Loader from "../component/Loader";
+import axios from "axios";
 
 export default function Home() {
   let [state, setState] = useState({
@@ -22,10 +22,12 @@ export default function Home() {
     hasBeenSetup: false,
     accountExists: false,
     currentState: null as null | Field,
-    // publicKey: null as null | PublicKey,
+    publicKey: null as null | PublicKey,
     zkappPublicKey: null as null | PublicKey,
     creatingTransaction: false,
   });
+
+  const [txnJson, settxnJson] = useState<any>();
 
   const [data, setdata] = useState({
     userId: "" as string,
@@ -59,6 +61,25 @@ export default function Home() {
         const res = await zkappWorkerClient.fetchAccount({
           publicKey: publicKey!,
         });
+
+        const mina = (window as any).mina;
+
+        if (mina == null) {
+          setState({ ...state, hasWallet: false });
+          return;
+        }
+
+        const publicKeyBase58: string = (await mina.requestAccounts())[0];
+        const publicKey1 = PublicKey.fromBase58(publicKeyBase58);
+
+        console.log("using key", publicKey.toBase58());
+
+        console.log("checking if account exists...");
+        const res1 = await zkappWorkerClient.fetchAccount({
+          publicKey: publicKey1!,
+        });
+        const accountExists = res1.error == null;
+
         console.log(res);
         setuistate({ ...uistate, message: "Loading contract..." });
         await zkappWorkerClient.loadContract();
@@ -87,7 +108,8 @@ export default function Home() {
           hasWallet: true,
           hasBeenSetup: true,
           zkappPublicKey,
-          accountExists: true,
+          accountExists,
+          publicKey: publicKey1,
           currentState,
         });
       }
@@ -102,23 +124,48 @@ export default function Home() {
       setState({ ...state, creatingTransaction: true });
       setuistate({ loading: true, message: "sending a transaction..." });
       const dataT = await getSignerData(data.userId, data.rate);
-      console.log("dataT", dataT);
-      const response: { success: boolean; message: any } =
-        await state.zkappWorkerClient!.createUpdateTransaction(dataT);
 
-      if (!response?.success) {
-        setuistate({
-          loading: false,
-          message: "Transaction decline. Current user state False.",
-        });
-      } else {
-        setuistate({
-          loading: false,
-          message:
-            "Transaction Successful. Current user state True for user Id." +
-            response?.message,
-        });
-      }
+      await state.zkappWorkerClient!.fetchAccount({
+        publicKey: state.publicKey!,
+      });
+
+      await state.zkappWorkerClient!.createUpdateTransaction(dataT);
+
+      console.log("creating proof...");
+      await state.zkappWorkerClient!.proveUpdateTransaction();
+
+      console.log("getting Transaction JSON...");
+      const transactionJSON =
+        await state.zkappWorkerClient!.getTransactionJSON();
+      settxnJson(transactionJSON);
+      console.log("requesting send transaction...");
+      const { hash } = await (window as any).mina.sendTransaction({
+        transaction: transactionJSON,
+        feePayer: {
+          fee: 0.1,
+          memo: "test",
+        },
+      });
+
+      console.log(hash);
+
+      // console.log("dataT", dataT);
+      // const response: { success: boolean; message: any } =
+      //   await state.zkappWorkerClient!.createUpdateTransaction(dataT);
+
+      // if (!response?.success) {
+      //   setuistate({
+      //     loading: false,
+      //     message: "Transaction decline. Current user state False.",
+      //   });
+      // } else {
+      //   setuistate({
+      //     loading: false,
+      //     message:
+      //       "Transaction Successful. Current user state True for user Id." +
+      //       response?.message,
+      //   });
+      // }
 
       setState({ ...state, creatingTransaction: false });
     } catch (error) {
@@ -131,94 +178,61 @@ export default function Home() {
     }
   };
 
-  // let mainContent;
-  // if (state.hasBeenSetup && state.accountExists) {
-  //   mainContent = (
-  //     <div>
-  //       <input
-  //         placeholder="enter value"
-  //         value={data.rate}
-  //         name="num"
-  //         type="number"
-  //         onChange={(e: any) => {
-  //           setdata({
-  //             ...data,
-  //             rate: e.target.value,
-  //           });
-  //         }}
-  //       />
-  //       <button
-  //         onClick={onSendTransaction}
-  //         disabled={state.creatingTransaction}
-  //       >
-  //         Send Transaction
-  //       </button>
-  //       {/* <div> Current Number in zkApp: {state.currentNum!.toString()} </div>
-  //       <button onClick={onRefreshCurrentNum}> Get Latest State </button> */}
-  //     </div>
-  //   );
-  // }
+  const createSignature = async () => {
+    const dataT = getSignerData(data.userId, data.rate);
+    const fileName = "my-file";
+    const json = JSON.stringify(dataT, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const href = URL.createObjectURL(blob);
 
-  // const onSubmit = async () => {
-  //   const res = await axios.get(
-  //     "https://sellercentral.amazon.in/performance/detail/shipping?t=cr&ref=sp_st_dash_csp_car",
-  //     {
-  //       headers: {
-  //         "Access-Control-Allow-Origin": "*",
-  //       },
-  //     }
-  //   );
-  // const resR = await res.json();
+    // create "a" HTLM element with href to file
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = fileName + ".json";
+    document.body.appendChild(link);
+    link.click();
 
-  //   if (res.data.includes("Amazon Sign In")) {
-  //     console.log("please login first");
-  //     return;
-  //   }
-  //   console.log(
-  //     res.data.slice(
-  //       res.data.lastIndexOf(
-  //         '<span class="a-color-base sp-giant-text pre-fulfillment-cancel-rate-metric">'
-  //       ) +
-  //         '<span class="a-color-base sp-giant-text pre-fulfillment-cancel-rate-metric">'
-  //           .length,
-  //       res.data.lastIndexOf(
-  //         '</span></div></div></div><div id="pre-fulfillment-cancel-rate-summary-cancelled" class="a-section a-spacing-none">'
-  //       )
-  //     )
-  //   );
-  // };
+    // clean up "a" element & remove ObjectURL
+    document.body.removeChild(link);
+    URL.revokeObjectURL(href);
+  };
+  const genrateProof = () => {
+    // console.log(txnJson);
+    // const chjson = Proof.fromJSON();
+    // console.log(chjson);
+  };
 
   const getData = async () => {
-    // const res = await axios.get(
-    //   "https://sellercentral.amazon.in/performance/detail/shipping?t=cr&ref=sp_st_dash_csp_car",
-    //   {
-    //     headers: {
-    //       "Access-Control-Allow-Credentials": "true",
-    //       "Access-Control-Allow-Origin": "http://localhost:3000",
-    //       "Access-Control-Allow-Methods":
-    //         "GET, POST, PUT, PATCH, POST, DELETE, OPTIONS",
-    //       "Access-Control-Allow-Headers": "Content-Type",
-    //       "Content-Type": "text/plain",
-    //       "Access-Control-Max-Age": "86400",
-    //     },
-    //   }
-    // );
-    // if (res.data.includes("Amazon Sign In")) {
-    //   console.log("please login first");
-    //   return;
-    // }
-    // console.log(
-    //   res.data.slice(
-    //     res.data.lastIndexOf(
-    //       '<span class="a-color-base sp-giant-text pre-fulfillment-cancel-rate-metric">'
-    //     ) +
-    //       '<span class="a-color-base sp-giant-text pre-fulfillment-cancel-rate-metric">'
-    //         .length,
-    //     res.data.lastIndexOf(
-    //       '</span></div></div></div><div id="pre-fulfillment-cancel-rate-summary-cancelled" class="a-section a-spacing-none">'
-    //     )
-    //   )
-    // );
+    const res = await axios.get(
+      "https://sellercentral.amazon.in/performance/detail/shipping?t=cr&ref=sp_st_dash_csp_car",
+      {
+        headers: {
+          "Access-Control-Allow-Credentials": "true",
+          "Access-Control-Allow-Origin": "http://localhost:3000",
+          "Access-Control-Allow-Methods":
+            "GET, POST, PUT, PATCH, POST, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Content-Type": "text/plain",
+          "Access-Control-Max-Age": "86400",
+        },
+      }
+    );
+    if (res.data.includes("Amazon Sign In")) {
+      console.log("please login first");
+      return;
+    }
+    console.log(
+      res.data.slice(
+        res.data.lastIndexOf(
+          '<span class="a-color-base sp-giant-text pre-fulfillment-cancel-rate-metric">'
+        ) +
+          '<span class="a-color-base sp-giant-text pre-fulfillment-cancel-rate-metric">'
+            .length,
+        res.data.lastIndexOf(
+          '</span></div></div></div><div id="pre-fulfillment-cancel-rate-summary-cancelled" class="a-section a-spacing-none">'
+        )
+      )
+    );
   };
 
   const handelChange = (e: any) => {
@@ -291,12 +305,28 @@ export default function Home() {
                       Get your Amazon Data
                     </Button>
                     <Button
-                      type="submit"
                       fullWidth
+                      variant="contained"
+                      sx={{ mt: 3, mb: 2 }}
+                      onClick={createSignature}
+                    >
+                      Create Signature
+                    </Button>
+                    <Button
+                      fullWidth
+                      type="submit"
                       variant="contained"
                       sx={{ mt: 3, mb: 2 }}
                     >
                       Submit
+                    </Button>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      sx={{ mt: 3, mb: 2 }}
+                      onClick={genrateProof}
+                    >
+                      Generate proof
                     </Button>
                   </Box>
                 </Box>
